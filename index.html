@@ -83,13 +83,21 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Registros de Ativação/Desativação</h5>
                 </div>
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" id="searchInput" class="form-control"
+                            placeholder="Digite a descrição do alarme">
+                        <button onclick="filterAlarmByDescription()" class="btn btn-primary">Buscar</button>
+                        <button onclick="resetFilter()" class="btn btn-secondary">Limpar</button>
+                    </div>
+                </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead class="table-dark">
                                 <tr>
                                     <th>ID</th>
-                                    <th>Nome do Alarme</th>
+                                    <th>Descrição</th>
                                     <th>Data Entrada</th>
                                     <th>Data Saída</th>
                                     <th>Status</th>
@@ -117,65 +125,80 @@
             return date.toLocaleString('pt-BR');
         }
 
+        let allAlarmData = [];
+
         function fetchAlarmHistory() {
             document.getElementById('alarmHistoryTable').innerHTML = `
-                <tr>
-                    <td colspan="6" class="text-center">Carregando dados...</td>
-                </tr>
-            `;
+        <tr>
+            <td colspan="6" class="text-center">Carregando dados...</td>
+        </tr>
+    `;
 
             fetch('http://localhost:8000/alarm/fetchActuatedAlarm')
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data.data);
-                    if (data.length === 0) {
+                    if (data.length === 0 || !data.data) {
                         document.getElementById('alarmHistoryTable').innerHTML = `
-                            <tr>
-                                <td colspan="6" class="text-center">Nenhum registro encontrado</td>
-                            </tr>
-                        `;
+                    <tr>
+                        <td colspan="6" class="text-center">Nenhum registro encontrado</td>
+                    </tr>
+                `;
                         return;
                     }
-                    let tableContent = '';
-                    const maxUso = Math.max(...data.data.map(alarme => alarme.quantidade_uso));
-                    const alarmesMaisUsados = data.data.filter(alarme => alarme.quantidade_uso === maxUso);
-                    alarmesMaisUsados.forEach(item => {
-                        document.getElementById('mostUsedAlarmInfo').innerHTML = `
-                                <p><strong>Nome:</strong> ${item.nome_alarme || 'N/A'}</p>
-                                <p><strong>Total de usos:</strong> ${item.quantidade_uso || 0}</p>
-                                <p><strong>Última ativação:</strong> ${formatDate(item.data_saida)}</p>
-                            `;
-                    })
-                    data.data.forEach(alarme => {
-                        tableContent += `
-                            <tr>
-                                <td>${alarme.id}</td>
-                                <td>${alarme.nome_alarme || 'N/A'}</td>
-                                <td>${formatDate(alarme.data_entrada)}</td>
-                                <td>${formatDate(alarme.data_saida)}</td>
-                                <td class="${alarme.status === 'Ativo' ? 'status-ativo' : 'status-inativo'}">
-                                    ${alarme.status}
-                                </td>
-                            </tr>
-                        `;
-                    });
 
-                    document.getElementById('alarmHistoryTable').innerHTML = tableContent;
+                    allAlarmData = data.data;
 
+                    renderTable(allAlarmData);
+
+                    const maxUso = Math.max(...data.data.map(a => a.quantidade_uso));
+                    const alarmesMaisUsados = data.data.filter(a => a.quantidade_uso === maxUso);
+                    const alarme = alarmesMaisUsados[0];
+
+                    document.getElementById('mostUsedAlarmInfo').innerHTML = `
+                <p><strong>Nome:</strong> ${alarme.nome_alarme || 'N/A'}</p>
+                <p><strong>Total de usos:</strong> ${alarme.quantidade_uso || 0}</p>
+                <p><strong>Última ativação:</strong> ${formatDate(alarme.data_saida)}</p>
+            `;
                 })
                 .catch(error => {
                     console.error("Erro ao buscar dados:", error);
                     document.getElementById('alarmHistoryTable').innerHTML = `
-                        <tr>
-                            <td colspan="6" class="text-center text-danger">Erro ao carregar dados</td>
-                        </tr>
-                    `;
+                <tr>
+                    <td colspan="6" class="text-center text-danger">Erro ao carregar dados</td>
+                </tr>
+            `;
                 });
         }
 
+        function renderTable(data) {
+            const tableBody = data.map(alarme => `
+        <tr>
+            <td>${alarme.id}</td>
+            <td>${alarme.nome_alarme || 'N/A'}</td>
+            <td>${formatDate(alarme.data_entrada)}</td>
+            <td>${formatDate(alarme.data_saida)}</td>
+            <td class="${alarme.status === 'Ativo' ? 'status-ativo' : 'status-inativo'}">${alarme.status}</td>
+        </tr>
+    `).join("");
+
+            document.getElementById('alarmHistoryTable').innerHTML = tableBody;
+        }
+
+        function filterAlarmByDescription() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allAlarmData.filter(a =>
+                (a.nome_alarme || '').toLowerCase().includes(input)
+            );
+            renderTable(filtered);
+        }
+
+        function resetFilter() {
+            document.getElementById('searchInput').value = '';
+            renderTable(allAlarmData);
+        }
         document.addEventListener('DOMContentLoaded', function () {
             fetchAlarmHistory();
-            fetchMostUsedAlarm();
+
         });
     </script>
 </body>
