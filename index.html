@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <title>Histórico de Alarmes</title>
+    <style>
+        .main {
+            max-width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .sidebar {
+            width: 250px;
+            height: 100vh;
+            background-color: #0d47a1;
+            color: white;
+            padding-top: 20px;
+            position: fixed;
+        }
+
+        .sidebar .btn {
+            width: 90%;
+            margin: 10px auto;
+            display: block;
+        }
+
+        .content {
+            margin-left: 260px;
+            padding: 20px;
+            width: calc(100% - 260px);
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+
+        .status-ativo {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-inativo {
+            color: red;
+            font-weight: bold;
+        }
+
+        .table-responsive {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .most-used-alarm {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0d6efd;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="d-flex">
+        <nav class="sidebar d-flex flex-column align-items-center">
+            <h4>Sistema</h4>
+            <a href="./pages/alarm.html" class="btn btn-light">Alarmes</a>
+            <a href="./pages/equipment.html" class="btn btn-light">Equipamentos</a>
+        </nav>
+
+        <main class="content">
+            <h2 class="mb-4">Histórico de Alarmes</h2>
+            <div class="most-used-alarm">
+                <h5>Alarme Mais Usado</h5>
+                <div id="mostUsedAlarmInfo">
+                    <p>Carregando informações...</p>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Registros de Ativação/Desativação</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome do Alarme</th>
+                                    <th>Data Entrada</th>
+                                    <th>Data Saída</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alarmHistoryTable">
+                                <tr>
+                                    <td colspan="6" class="text-center">Carregando dados...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('pt-BR');
+        }
+
+        function fetchAlarmHistory() {
+            document.getElementById('alarmHistoryTable').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center">Carregando dados...</td>
+                </tr>
+            `;
+
+            fetch('http://localhost:8000/alarm/fetchActuatedAlarm')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.data);
+                    if (data.length === 0) {
+                        document.getElementById('alarmHistoryTable').innerHTML = `
+                            <tr>
+                                <td colspan="6" class="text-center">Nenhum registro encontrado</td>
+                            </tr>
+                        `;
+                        return;
+                    }
+                    let tableContent = '';
+                    const maxUso = Math.max(...data.data.map(alarme => alarme.quantidade_uso));
+                    const alarmesMaisUsados = data.data.filter(alarme => alarme.quantidade_uso === maxUso);
+                    alarmesMaisUsados.forEach(item => {
+                        document.getElementById('mostUsedAlarmInfo').innerHTML = `
+                                <p><strong>Nome:</strong> ${item.nome_alarme || 'N/A'}</p>
+                                <p><strong>Total de usos:</strong> ${item.quantidade_uso || 0}</p>
+                                <p><strong>Última ativação:</strong> ${formatDate(item.data_saida)}</p>
+                            `;
+                    })
+                    data.data.forEach(alarme => {
+                        tableContent += `
+                            <tr>
+                                <td>${alarme.id}</td>
+                                <td>${alarme.nome_alarme || 'N/A'}</td>
+                                <td>${formatDate(alarme.data_entrada)}</td>
+                                <td>${formatDate(alarme.data_saida)}</td>
+                                <td class="${alarme.status === 'Ativo' ? 'status-ativo' : 'status-inativo'}">
+                                    ${alarme.status}
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('alarmHistoryTable').innerHTML = tableContent;
+
+                })
+                .catch(error => {
+                    console.error("Erro ao buscar dados:", error);
+                    document.getElementById('alarmHistoryTable').innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center text-danger">Erro ao carregar dados</td>
+                        </tr>
+                    `;
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            fetchAlarmHistory();
+            fetchMostUsedAlarm();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <title>Alarmes</title>
+</head>
+
+<body>
+
+    <div class="container mt-5">
+        <div class="pb-5">
+            <a class="btn btn-primary" href="/">Voltar</a>
+        </div>
+        <h2 class="mb-4">Lista de Alarmes</h2>
+        <div class="pb-3">
+            <button class="btn btn-primary" onclick="abrirModal()">Adicionar alarme</button>
+        </div>
+        <table class="table table-bordered text-center">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Descrição</th>
+                    <th>Descrição equipamento</th>
+                    <th>Data Cadastro</th>
+                    <th>Classificação</th>
+                    <th>Excluir alarme</th>
+                    <th>Editar</th>
+                    <th>Ativar/Desativar</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-alarmes">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL PARA CRIAR/EDITAR ALARMES -->
+    <div class="modal fade" id="modalAlarme" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalLabel">Adicionar Alarme</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formAlarme">
+                        <input type="hidden" id="alarmeId">
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <input type="text" class="form-control" id="descricao" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Classificação</label>
+                            <select class="form-select" id="classificacao" required>
+                                <option value="1">Urgente</option>
+                                <option value="2">Emergente</option>
+                                <option value="3">Ordinário</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Equipamento</label>
+                            <select class="form-select" id="equipamentoSelect" required>
+                                <option value="">Selecione um equipamento</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="salvarAlarme()">Salvar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            fetchAlarm();
+            fetchEquipment();
+        });
+
+        let equipamentos = [];
+
+        const fetchEquipment = () => {
+            fetch('http://localhost:8000/equipment/fetchEquiment')
+                .then(response => response.json())
+                .then(data => {
+                    equipamentos = data;
+                    let select = document.getElementById("equipamentoSelect");
+                    select.innerHTML = '<option value="">Selecione um equipamento</option>';
+                    data.forEach(eq => {
+                        let option = document.createElement("option");
+                        option.value = eq.equipamento_id;
+                        option.textContent = eq.equipamento_nome;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => console.error("Erro ao buscar os equipamentos:", error));
+        };
+
+        const fetchAlarm = () => {
+            fetch('http://localhost:8000/alarm/fetchAlarm')
+                .then(response => response.json())
+                .then(data => {
+                    const tabela = document.getElementById("tabela-alarmes");
+                    tabela.innerHTML = "";
+                    data.forEach(al => {
+                        const isChecked = al.status === 'Ativo' ? 'checked' : '';
+                        const row = `<tr>
+                    <td>${al.id}</td>
+                    <td>${al.descricao_alarme}</td>
+                    <td>${al.equipamento_nome}</td>
+                    <td>${al.data_cadastro}</td>
+                    <td>${al.classificacao_alarme}</td>
+                    <td>
+                        <button class='btn btn-danger' onclick="deleteAlarme(${al.id})">Excluir</button>
+                    </td>
+                    <td>
+                        <button class='btn btn-warning' onclick="editarAlarme(${al.id}, '${al.descricao_alarme}', ${al.equipamento_id}, '${al.classificacao_alarme}')">Editar</button>
+                    </td>
+                    <td>
+                    <div class="form-check form-switch d-flex justify-content-center">
+                            <input class="form-check-input" type="checkbox" id="switch-${al.id}" 
+                                onChange="toggleAlarm(this, ${al.id})"
+                                ${isChecked ? 'checked' : ''}>
+                        </div>
+                </td>
+                </tr>`;
+                        tabela.innerHTML += row;
+                    });
+                })
+                .catch(error => console.error("Erro ao buscar os dados:", error));
+        };
+        const toggleAlarm = (checkbox, id) => {
+            let status = checkbox.checked ? 'Ativo' : 'Inativo';
+            fetch(`http://localhost:8000/alarm/insertActuatedAlarm/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    alarme_id: id,
+                    status: status
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert("Erro ao atualizar o status do alarme!");
+                        checkbox.checked = !checkbox.checked;
+                    } else {
+                        console.log("Status do alarme atualizado com sucesso!");
+                    }
+                })
+                .catch(error => {
+                    console.error("Erro ao atualizar o alarme:", error);
+                    checkbox.checked = !checkbox.checked;
+                });
+        };
+
+        const deleteAlarme = (id) => {
+            if (confirm("Tem certeza que deseja excluir este alarme?")) {
+                fetch(`http://localhost:8000/alarm/delete/${id}`, { method: "DELETE" })
+                    .then(response => response.json())
+                    .then(() => fetchAlarm())
+                    .catch(error => console.error("Erro ao excluir o alarme:", error));
+            }
+        };
+
+        const abrirModal = (id = null, descricao = "", equipamentoId = "", classificacao = "Urgente") => {
+            document.getElementById("alarmeId").value = id || "";
+            document.getElementById("descricao").value = descricao;
+            document.getElementById("equipamentoSelect").value = equipamentoId || "";
+            document.getElementById("classificacao").value = classificacao;
+            document.getElementById("modalLabel").textContent = id ? "Editar Alarme" : "Adicionar Alarme";
+
+            let modal = new bootstrap.Modal(document.getElementById("modalAlarme"));
+            modal.show();
+        };
+
+        const editarAlarme = (id, descricao, equipamentoId, classificacao) => {
+            abrirModal(id, descricao, equipamentoId, classificacao);
+        };
+        const salvarAlarme = () => {
+            let id = document.getElementById("alarmeId").value;
+            let descricao = document.getElementById("descricao").value;
+            let equipamentoId = document.getElementById("equipamentoSelect").value;
+            let classificacao = document.getElementById("classificacao").value;
+
+            let url = id ? "http://localhost:8000/alarm/update" : "http://localhost:8000/alarm/insert";
+            let method = id ? "PUT" : "POST";
+
+            let alarme = { descricao: descricao, classificacao_id: classificacao, equipamento_id: equipamentoId };
+
+            if (id) {
+                alarme.id = id;
+            }
+
+            fetch(url, {
+                method: method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(alarme)
+            })
+                .then(response => response.json())
+                .then(() => {
+                    let modal = bootstrap.Modal.getInstance(document.getElementById("modalAlarme"));
+                    modal.hide();
+                    fetchAlarm();
+                })
+                .catch(error => console.error("Erro ao salvar o alarme:", error));
+        };
+
+    </script>
+</body>
+
+</html>
